@@ -1,3 +1,4 @@
+import copy as cp
 T, F = True, False
 ## Define probability node takes on value given evidence
 def P(node, value, evidence={}):
@@ -137,7 +138,7 @@ def get_prob(X, e, bn):
     temp = bn.find_node(X)
     temp_val = bn.find_values(X)
     result ={}
-    if(e==None or e==''):
+    if(e==None or e=='' or e=={}):
         if temp.parents==[]:
             for i in temp_val:
                 result[i] = P(temp,i)
@@ -166,9 +167,79 @@ def get_prob(X, e, bn):
     else:
         #have evidence
 
-        pass
-    return PDF_discrete(freqs=result).prob
+        #1.如果包括自己
+        if X in e:
+            result[e[X]] = 1
+            for i in temp_val:
+                if i!=e[X]:
+                    result[i] = 0
+        #2.除去无关节点,完全无关的节点序列也会存储下来
+        relate_to = []
+        no_relate = []
 
+        for i in list(e.keys()):
+            relate_to.append(i)
+
+        relate_to = dfs(temp,relate_to)
+        for i in bn.nodes:
+            if i.variable in relate_to or i.parent.variable in relate_to:
+                relate_to.append(i.variable)
+        for i in bn.nodes:
+            if i.variable not in relate_to:
+                no_relate.append(i.variable)
+        for i in e.keys():
+            if i in no_relate:
+                del e[i]
+
+        #如果此时条件被清空
+        if len(e)==0:
+            return get_prob(X,None,bn)
+
+        '''接下来就是基于迭代的算法，略,no_relate节点之间return 1'''
+        for val in temp_val:
+            e = cp.deepcopy(e)
+            e[X] = val
+            result[val] = enumerateVars(bn.nodes,e,no_relate,bn)
+
+    return PDF_discrete(freqs=result).prob
+def enumerateVars(nodes,e, no_relate, bn):
+    # Check if variables are invalid
+    if len(nodes) == 0:
+        return 1
+
+
+    # Get variable
+    var = nodes[0].variable
+
+    #无关节点
+    if var in no_relate:
+        return 1
+
+    otherVars = cp.deepcopy(nodes)
+    del nodes[0]
+
+
+    # If variable in evidence, then return it, otherwise enumerate until you can
+    if var in e:
+        probVar = e[var]
+        return P(bn.find_node(var), probVar, e) * enumerateVars(otherVars, e,no_relate, bn)
+
+
+    else:
+        p = 0
+        eNew = cp.deepcopy(e)
+        for x in bn.find_node(var).values:
+            eNew[var] = x
+            p += enumerateVars(otherVars, eNew,no_relate,bn) * P(bn.find_node(var), x, eNew)
+        return p
+
+def dfs(now,relate):
+    if now.parent!=[]:
+        for i in list(now.parent):
+            if i not in relate:
+                relate.append(i.variable)
+    else:
+        return relate
 
 
 # Define the nodes from the problem statement
@@ -185,33 +256,3 @@ Rapid = BayesNode('Rapid', 'HD', [T,F], {T: 0.99, F: 0.3})
 
 # Create a Bayes net with those nodes and connections
 bnHeart = BayesNet([Sm, ME, HBP, Ath, FH, HD, Ang, Rapid])
-
-
-a1 = get_prob('FH',None,bnHeart)[T]
-
-
-# a2 = None
-# # temp_a2 = PDF_discrete('HD',bnHeart.find_node('Ang').cpt)
-#
-# a2 = get_prob('Ang',['HD'],bnHeart)
-
-
-# a3 = None
-# # YOUR CODE HERE
-# raise NotImplementedError()
-#
-a4 = get_prob('HD',None,bnHeart)[T]
-
-assert (np.isclose(a4, 0.661, atol=0.002)), "P(HD) = 0.662 and your code returned %f" % a4
-
-# a5 = None
-# # YOUR CODE HERE
-# raise NotImplementedError()
-#
-# a6 = None
-# # YOUR CODE HERE
-# raise NotImplementedError()
-#
-# a7 = None
-# # YOUR CODE HERE
-# raise NotImplementedError()
